@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nightly Build Flow Diagram</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --android14: #3ddc84;
+    --android15: #00c6ff;
+    --cpp: #ff6b35;
+    --gradle: #f7c948;
+    --gpo: #c084fc;
+    --coverity: #fb7185;
+    --blackduck: #34d399;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #38bdf8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: auto;
+    padding: 40px 20px;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 50px;
+  }
+  .header h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Trigger Node */
+  .trigger-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .trigger-main {
+    background: linear-gradient(135deg, #1a2235, #0f1929);
+    border: 2px solid #38bdf8;
+    border-radius: 16px;
+    padding: 18px 40px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(56,189,248,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+    position: relative;
+    overflow: hidden;
+  }
+  .trigger-main::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(56,189,248,0.8), transparent);
+  }
+  .trigger-main .icon { font-size: 1.6rem; margin-bottom: 4px; }
+  .trigger-main .label {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #38bdf8;
+    letter-spacing: 0.05em;
+  }
+  .trigger-main .sublabel {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* Connector line */
+  .v-line {
+    width: 2px;
+    background: linear-gradient(to bottom, #38bdf8, transparent);
+    margin: 0 auto;
+  }
+  .v-line-solid {
+    width: 2px;
+    background: var(--border);
+    margin: 0 auto;
+  }
+
+  /* Fan out container */
+  .fan-container {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0 10px;
+  }
+
+  /* Pipeline column */
+  .pipeline {
+    flex: 1;
+    min-width: 220px;
+    max-width: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeInUp 0.6s ease both;
+  }
+  .pipeline:nth-child(1) { animation-delay: 0.1s; }
+  .pipeline:nth-child(2) { animation-delay: 0.2s; }
+  .pipeline:nth-child(3) { animation-delay: 0.3s; }
+  .pipeline:nth-child(4) { animation-delay: 0.4s; }
+  .pipeline:nth-child(5) { animation-delay: 0.5s; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Pipeline header */
+  .pipeline-header {
+    width: 100%;
+    border-radius: 12px 12px 0 0;
+    padding: 14px 12px 12px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .pipeline-header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.03);
+  }
+  .pipeline-header .pipe-icon { font-size: 1.4rem; margin-bottom: 3px; }
+  .pipeline-header .pipe-name {
+    font-weight: 700;
+    font-size: 0.82rem;
+    letter-spacing: 0.03em;
+    line-height: 1.3;
+  }
+  .pipeline-header .pipe-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    margin-top: 4px;
+    opacity: 0.85;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .badge-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 5px;
+    display: inline-block;
+  }
+
+  /* Color themes per pipeline */
+  .a14 .pipeline-header { background: linear-gradient(135deg, #0d2218, #0a2a1a); border: 1.5px solid var(--android14); border-bottom: none; box-shadow: 0 0 20px rgba(61,220,132,0.15); }
+  .a14 .pipe-name, .a14 .pipe-time { color: var(--android14); }
+  .a14 .badge-type { background: rgba(61,220,132,0.15); color: var(--android14); border: 1px solid rgba(61,220,132,0.3); }
+  .a14 .pipeline-body { border-color: var(--android14); border-top: none; }
+  .a14 .step-row:hover { background: rgba(61,220,132,0.06); }
+  .a14 .step-num { background: rgba(61,220,132,0.15); color: var(--android14); }
+
+  .a15 .pipeline-header { background: linear-gradient(135deg, #071c2c, #062030); border: 1.5px solid var(--android15); border-bottom: none; box-shadow: 0 0 20px rgba(0,198,255,0.15); }
+  .a15 .pipe-name, .a15 .pipe-time { color: var(--android15); }
+  .a15 .badge-type { background: rgba(0,198,255,0.15); color: var(--android15); border: 1px solid rgba(0,198,255,0.3); }
+  .a15 .pipeline-body { border-color: var(--android15); border-top: none; }
+  .a15 .step-row:hover { background: rgba(0,198,255,0.06); }
+  .a15 .step-num { background: rgba(0,198,255,0.15); color: var(--android15); }
+
+  .cpp .pipeline-header { background: linear-gradient(135deg, #2a1208, #271508); border: 1.5px solid var(--cpp); border-bottom: none; box-shadow: 0 0 20px rgba(255,107,53,0.15); }
+  .cpp .pipe-name, .cpp .pipe-time { color: var(--cpp); }
+  .cpp .badge-type { background: rgba(255,107,53,0.15); color: var(--cpp); border: 1px solid rgba(255,107,53,0.3); }
+  .cpp .pipeline-body { border-color: var(--cpp); border-top: none; }
+  .cpp .step-row:hover { background: rgba(255,107,53,0.06); }
+  .cpp .step-num { background: rgba(255,107,53,0.15); color: var(--cpp); }
+
+  .gradle .pipeline-header { background: linear-gradient(135deg, #27200a, #231e07); border: 1.5px solid var(--gradle); border-bottom: none; box-shadow: 0 0 20px rgba(247,201,72,0.15); }
+  .gradle .pipe-name, .gradle .pipe-time { color: var(--gradle); }
+  .gradle .badge-type { background: rgba(247,201,72,0.15); color: var(--gradle); border: 1px solid rgba(247,201,72,0.3); }
+  .gradle .pipeline-body { border-color: var(--gradle); border-top: none; }
+  .gradle .step-row:hover { background: rgba(247,201,72,0.06); }
+  .gradle .step-num { background: rgba(247,201,72,0.15); color: var(--gradle); }
+
+  .gpo .pipeline-header { background: linear-gradient(135deg, #1e0f30, #1a0c2e); border: 1.5px solid var(--gpo); border-bottom: none; box-shadow: 0 0 20px rgba(192,132,252,0.15); }
+  .gpo .pipe-name, .gpo .pipe-time { color: var(--gpo); }
+  .gpo .badge-type { background: rgba(192,132,252,0.15); color: var(--gpo); border: 1px solid rgba(192,132,252,0.3); }
+  .gpo .pipeline-body { border-color: var(--gpo); border-top: none; }
+  .gpo .step-row:hover { background: rgba(192,132,252,0.06); }
+  .gpo .step-num { background: rgba(192,132,252,0.15); color: var(--gpo); }
+
+  /* Pipeline body */
+  .pipeline-body {
+    width: 100%;
+    background: var(--surface);
+    border: 1.5px solid;
+    border-radius: 0 0 12px 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Step row */
+  .step-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 7px;
+    transition: background 0.2s;
+    cursor: default;
+  }
+  .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-content { flex: 1; }
+  .step-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1.3;
+  }
+  .step-name .sicon { font-size: 0.85rem; }
+  .step-desc {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+
+  /* Push badges */
+  .push-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 3px;
+    font-weight: 600;
+  }
+  .push-coverity {
+    background: rgba(251,113,133,0.12);
+    color: var(--coverity);
+    border: 1px solid rgba(251,113,133,0.25);
+  }
+  .push-blackduck {
+    background: rgba(52,211,153,0.12);
+    color: var(--blackduck);
+    border: 1px solid rgba(52,211,153,0.25);
+  }
+
+  /* Arrow between steps inside pipeline */
+  .step-arrow {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.65rem;
+    line-height: 1;
+    margin: 0 auto;
+    opacity: 0.5;
+  }
+
+  /* Component scale note */
+  .scale-note {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-top: 8px;
+    width: 100%;
+    text-align: center;
+  }
+  .scale-note .sn-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+  }
+  .scale-note .sn-count {
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+
+  /* Downstream section - gpo bump */
+  .downstream {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 40px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Fan line SVG */
+  .fan-line-container {
+    width: 100%;
+    height: 40px;
+    position: relative;
+    overflow: visible;
+  }
+
+  /* Divider between steps */
+  .step-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
+    opacity: 0.5;
+  }
+
+  /* Tooltip on hover */
+  .step-row:hover .step-desc { color: #94a3b8; }
+
+  /* Top connector horizontal line */
+  .h-connector {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 0;
+  }
+  .h-line { flex: 1; height: 2px; background: var(--border); }
+  .h-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>🌙 Nightly Build Pipeline</h1>
+    <p>Scheduled CI/CD Automation · IST Timezone · Nightly Execution</p>
+  </div>
+
+  <!-- Trigger Node -->
+  <div class="trigger-block">
+    <div class="trigger-main">
+      <div class="icon">⏰</div>
+      <div class="label">NIGHTLY SCHEDULER</div>
+      <div class="sublabel">Cron-based Trigger · IST Schedule</div>
+    </div>
+    <div class="v-line" style="height:30px;"></div>
+
+    <!-- Horizontal spread connector -->
+    <div style="width:100%; display:flex; align-items:flex-start; justify-content:center; position:relative;">
+      <svg width="100%" height="40" style="overflow:visible; position:absolute; top:0;" viewBox="0 0 1200 40" preserveAspectRatio="none">
+        <!-- Central vertical drop -->
+        <line x1="600" y1="0" x2="600" y2="20" stroke="#1e2d45" stroke-width="2"/>
+        <!-- Horizontal bar -->
+        <line x1="120" y1="20" x2="1080" y2="20" stroke="#1e2d45" stroke-width="2"/>
+        <!-- Drops to each column -->
+        <line x1="120" y1="20" x2="120" y2="40" stroke="#3ddc84" stroke-width="2"/>
+        <line x1="340" y1="20" x2="340" y2="40" stroke="#00c6ff" stroke-width="2"/>
+        <line x1="560" y1="20" x2="560" y2="40" stroke="#ff6b35" stroke-width="2"/>
+        <line x1="780" y1="20" x2="780" y2="40" stroke="#f7c948" stroke-width="2"/>
+        <line x1="1000" y1="20" x2="1000" y2="40" stroke="#c084fc" stroke-width="2"/>
+        <!-- Dots -->
+        <circle cx="120" cy="20" r="4" fill="#3ddc84"/>
+        <circle cx="340" cy="20" r="4" fill="#00c6ff"/>
+        <circle cx="560" cy="20" r="4" fill="#ff6b35"/>
+        <circle cx="780" cy="20" r="4" fill="#f7c948"/>
+        <circle cx="1000" cy="20" r="4" fill="#c084fc"/>
+      </svg>
+      <div style="height:40px; width:100%;"></div>
+    </div>
+  </div>
+
+  <!-- 5 Pipelines -->
+  <div class="fan-container">
+
+    <!-- 1: Android-14 -->
+    <div class="pipeline a14">
+      <div class="pipeline-header" style="width:100%;">
+        <div class="pipe-icon">🤖</div>
+        <div class="pipe-name">Android-14<br>Nightly</div>
+        <div class="pipe-time">🕑 2:00 AM IST</div>
+        <span class="badge-type">Android · Full Verify</span>
+      </div>
+      <div class="pipeline-body">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔄</span> repo-sync</div>
+            <div class="step-desc">Sync source repositories</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🏷️</span> tag-creation</div>
+            <div class="step-desc">Create nightly build tag</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔨</span> build</div>
+            <div class="step-desc">Compile Android-14 target</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔍</span> static-code-analysis</div>
+            <div class="step-desc">Coverity SAST scan</div>
+            <div><span class="push-badge push-coverity">⬆ Push → Coverity Stream</span></div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🦆</span> Black-Duck</div>
+            <div class="step-desc">OSS license & vuln scan</div>
+            <div><span class="push-badge push-blackduck">⬆ Push → BlackDuck Project</span></div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🧪</span> virtual-test : ATS</div>
+            <div class="step-desc">Run on virtual device farm</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2: Android-15 -->
+    <div class="pipeline a15">
+      <div class="pipeline-header" style="width:100%;">
+        <div class="pipe-icon">🤖</div>
+        <div class="pipe-name">Android-15<br>Nightly<br></div>
+        <div class="pipe-time">🕓 4:00 AM IST</div>
+        <span class="badge-type">Android · Full Verify</span>
+      </div>
+      <div class="pipeline-body">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔄</span> repo-sync</div>
+            <div class="step-desc">Sync source repositories</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🏷️</span> tag-creation</div>
+            <div class="step-desc">Create nightly build tag</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔨</span> build</div>
+            <div class="step-desc">Compile Android-15 target</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔍</span> static-code-analysis</div>
+            <div class="step-desc">Coverity SAST scan</div>
+            <div><span class="push-badge push-coverity">⬆ Push → Coverity Stream</span></div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🦆</span> Black-Duck</div>
+            <div class="step-desc">OSS license & vuln scan</div>
+            <div><span class="push-badge push-blackduck">⬆ Push → BlackDuck Project</span></div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🧪</span> virtual-test : ATS</div>
+            <div class="step-desc">Run on virtual device farm</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3: CPP -->
+    <div class="pipeline cpp">
+      <div class="pipeline-header" style="width:100%;">
+        <div class="pipe-icon">⚙️</div>
+        <div class="pipe-name">CPP-Component<br>Build</div>
+        <div class="pipe-time">🕐 1:30 AM IST</div>
+        <span class="badge-type">C++ · 15 Components</span>
+      </div>
+      <div class="pipeline-body">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔨</span> build</div>
+            <div class="step-desc">Compile each C++ component</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔍</span> static-code-analysis</div>
+            <div class="step-desc">Coverity SAST scan</div>
+            <div><span class="push-badge push-coverity">⬆ Push → Coverity Stream</span></div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">✅</span> unittest</div>
+            <div class="step-desc">Run unit test suites</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🦆</span> Black-Duck</div>
+            <div class="step-desc">OSS license & vuln scan</div>
+            <div><span class="push-badge push-blackduck">⬆ Push → BlackDuck Project</span></div>
+          </div>
+        </div>
+        <div class="scale-note">
+          <div class="sn-label">Parallelized across</div>
+          <div class="sn-count" style="color:var(--cpp);">×15 CPP Components</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4: Gradle -->
+    <div class="pipeline gradle">
+      <div class="pipeline-header" style="width:100%;">
+        <div class="pipe-icon">🐘</div>
+        <div class="pipe-name">Gradle-Component<br>Build</div>
+        <div class="pipe-time">🕑 2:00 AM IST</div>
+        <span class="badge-type">Gradle · 15 Components</span>
+      </div>
+      <div class="pipeline-body">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔨</span> build</div>
+            <div class="step-desc">Gradle build per component</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🔍</span> static-code-analysis</div>
+            <div class="step-desc">Coverity SAST scan</div>
+            <div><span class="push-badge push-coverity">⬆ Push → Coverity Stream</span></div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">✅</span> unittest</div>
+            <div class="step-desc">Run unit test suites</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🦆</span> Black-Duck</div>
+            <div class="step-desc">OSS license & vuln scan</div>
+            <div><span class="push-badge push-blackduck">⬆ Push → BlackDuck Project</span></div>
+          </div>
+        </div>
+        <div class="scale-note">
+          <div class="sn-label">Parallelized across</div>
+          <div class="sn-count" style="color:var(--gradle);">×15 Gradle Components</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5: GPO Android Bump -->
+    <div class="pipeline gpo">
+      <div class="pipeline-header" style="width:100%;">
+        <div class="pipe-icon">🚀</div>
+        <div class="pipe-name">GPO-Android<br>Bump</div>
+        <div class="pipe-time">🕥 10:30 AM IST</div>
+        <span class="badge-type">Post-Build · Downstream</span>
+      </div>
+      <div class="pipeline-body">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">🏷️</span> pull latest tag</div>
+            <div class="step-desc">Fetch latest nightly tag</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">⬆️</span> bump to ICM</div>
+            <div class="step-desc">Push tag to ICM project</div>
+          </div>
+        </div>
+        <div class="step-arrow">▼</div>
+        <div class="step-row">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-name"><span class="sicon">⬆️</span> bump to MIB4</div>
+            <div class="step-desc">Push tag to MIB4 project</div>
+          </div>
+        </div>
+        <div class="scale-note">
+          <div class="sn-label">Custom project targets</div>
+          <div class="sn-count" style="color:var(--gpo);">ICM · MIB4</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#3ddc84;"></div> Android-14 Nightly</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00c6ff;"></div> Android-15 Nightly</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b35;"></div> CPP Component Build (×15)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f7c948;"></div> Gradle Component Build (×15)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#c084fc;"></div> GPO Android Bump</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fb7185;"></div> → Coverity Stream</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#34d399;"></div> → BlackDuck Project</div>
+  </div>
+
+</div>
+</body>
+</html>

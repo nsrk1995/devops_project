@@ -1,0 +1,21 @@
+---
+- hosts: webserver
+  become: yes
+
+  tasks:
+
+  - name: Install Docker
+    yum:
+      name: docker
+      state: present
+
+  - name: Start Docker
+    service:
+      name: docker
+      state: started
+
+  - name: Pull Image
+    command: docker pull rajkumar/devops-demo
+
+  - name: Run Container
+    command: docker run -d -p 80:5000 rajkumar/devops-demo
